@@ -1,0 +1,12 @@
+# The build context is the repo root. Keep secrets and local junk out of it.
+.git
+.env
+*.env
+secrets/
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+web/build
+web/.svelte-kit
+docs
+ops

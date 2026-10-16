@@ -1,0 +1,274 @@
+# Training Hub stack.
+# Step 1: database and API. worker and web are added in later pieces.
+
+name: traininghub
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: traininghub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - internal
+    # No published ports: only containers on the internal network reach Postgres.
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      # Database upgrades are done by hand, never by Watchtower.
+      com.centurylinklabs.watchtower.enable: "false"
+      # Glance docker-containers widget: shown under Training Hub, not as its own entry.
+      glance.parent: traininghub
+      glance.name: Postgres
+      glance.description: Training Hub database
+
+  # One-shot: applies database migrations, then exits. The API only starts after it succeeded.
+  migrate:
+    image: traininghub-api:local
+    # Built by the api service below; never pulled from a registry.
+    pull_policy: never
+    container_name: traininghub-migrate
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    mem_limit: 256m
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      glance.hide: "true"
+
+  api:
+    build:
+      # Repo root, because the image also builds web/. .dockerignore keeps .env and secrets/ out.
+      context: .
+      dockerfile: api/Dockerfile
+      # RUN steps in a build use a default-bridge-style network, which cannot reach
+      # a local DNS resolver on some hosts and so cannot resolve pypi.org.
+      # The host network can. This affects only the image build, not the running container,
+      # which resolves fine through Docker's embedded DNS on traininghub-internal.
+      network: host
+    image: traininghub-api:local
+    container_name: traininghub-api
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      SESSION_SECRET: ${SESSION_SECRET}
+      # Barcode lookups: Open Food Facts asks for a contact e-mail in the User-Agent. Optional.
+      OFF_CONTACT: ${OFF_CONTACT:-}
+      RAW_DIR: /raw
+    volumes:
+      # Raw Open Food Facts answers, archived before parsing. Only this subfolder of the raw archive:
+      # the API never sees the LibreLinkUp archive. Must exist, owned by uid 10001, before the API starts.
+      - ./data/raw/off:/raw/off
+      # Raw FIT files (manual uploads; the Garmin sync writes here too). Same rule: uid 10001, created first.
+      - ./data/raw/fit:/raw/fit
+      # The training plan's .ics files (Settings > Plan), archived before parsing. Same rule.
+      - ./data/raw/plan:/raw/plan
+    secrets:
+      # Mounted at /run/secrets/app_password_hash. Created with app.set_password.
+      - app_password_hash
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - internal
+      # Shared with Nginx Proxy Manager, which reaches the API as traininghub-api:8000.
+      # The database is not on this network.
+      - proxy
+    # No published ports. The only way in is https://training.example.com through
+    # Nginx Proxy Manager (access list: LAN and Tailscale only), so the password never
+    # crosses the LAN in plain HTTP.
+    mem_limit: 256m
+    healthcheck:
+      # The slim image has no curl, so the check uses Python itself.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      # Locally built image: Watchtower has nothing to pull for it.
+      com.centurylinklabs.watchtower.enable: "false"
+      # Glance docker-containers widget. Its status follows the container healthcheck,
+      # which is the real /health (includes the database check).
+      glance.id: traininghub
+      glance.name: Training Hub
+      glance.description: App and API
+      glance.url: https://training.example.com
+      glance.icon: https://training.example.com/icon-192.png
+
+  # Garmin sync: at 13:00 and 22:00 (Madrid) and on "Sync now". Same image as the API, its own process.
+  # Logs in with saved tokens only; the first login is done once by hand (python -m app.garmin_login).
+  garmin:
+    image: traininghub-api:local
+    # Built by the api service; never pulled from a registry.
+    pull_policy: never
+    container_name: traininghub-garmin
+    command: ["python", "-m", "app.garmin_sync"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      RAW_DIR: /raw
+      GARMIN_TOKENS: /garmin
+      # Days of activities fetched by the very first sync.
+      GARMIN_BACKFILL_DAYS: ${GARMIN_BACKFILL_DAYS:-30}
+    volumes:
+      # Tokens only, never the password. Named volume: on the server's root disk, not in the repo.
+      - garmin-tokens:/garmin
+      # Original FIT files, archived before parsing (shared with the API's manual upload).
+      - ./data/raw/fit:/raw/fit
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Needs the internet (Garmin Connect) and the database; traininghub-internal gives both.
+    networks:
+      - internal
+    mem_limit: 256m
+    healthcheck:
+      # Healthy while the loop is alive (heartbeat every 30 s). Sync failures are /health/garmin's job.
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/heartbeat') < 300 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 60s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      glance.parent: traininghub
+      glance.name: Garmin sync
+      glance.description: Activities, twice a day
+
+  # AI analysis (step 8): writes the run reports queued by imports and by the run page. The only service
+  # with the API keys; the API reads its status row instead of holding them.
+  analysis:
+    image: traininghub-api:local
+    pull_policy: never
+    container_name: traininghub-analysis
+    command: ["python", "-m", "app.ai_worker"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Billed per token by each provider, separately from any chat subscription. Leave one empty to
+      # use only the other.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Needs the internet (the provider APIs) and the database; traininghub-internal gives both.
+    networks:
+      - internal
+    mem_limit: 128m
+    healthcheck:
+      # Healthy while the loop is alive (heartbeat every 5 s, or after each report).
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/analysis-heartbeat') < 300 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 60s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      glance.parent: traininghub
+      glance.name: AI analysis
+      glance.description: Run reports
+
+  # LibreLinkUp collector: one request per minute, live reading plus 15-minute backfill.
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+      # Same reason as the API: builds cannot resolve names on the default bridge.
+      network: host
+    image: traininghub-worker:local
+    container_name: traininghub-worker
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      RAW_DIR: /raw
+    secrets:
+      - llu_email
+      - llu_password
+    volumes:
+      # Raw LibreLinkUp responses, one gzip file per day. Owned by uid 10001 on the host.
+      - ./data/raw:/raw
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Needs the internet (LibreLinkUp) and the database; traininghub-internal gives both.
+    networks:
+      - internal
+    mem_limit: 192m
+    healthcheck:
+      # Healthy while a poll has succeeded in the last 5 minutes (heartbeat file).
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/heartbeat') < 300 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 120s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      glance.parent: traininghub
+      glance.name: Glucose collector
+      glance.description: LibreLinkUp, every minute
+
+secrets:
+  app_password_hash:
+    # Lives only on the server, gitignored. Must be readable by the API's uid 10001.
+    file: ./secrets/app_password_hash
+  llu_email:
+    # LibreLinkUp follower account. the server only, gitignored, owned by uid 10001.
+    file: ./secrets/llu_email
+  llu_password:
+    file: ./secrets/llu_password
+
+volumes:
+  # Named volume on the host's own disk.
+  db-data:
+    name: traininghub-db-data
+  # Garmin tokens (a refresh token gives access to the Garmin account: treat it like a password).
+  garmin-tokens:
+    name: traininghub-garmin-tokens
+
+networks:
+  internal:
+    name: traininghub-internal
+  proxy:
+    # Created outside this stack, shared with nginx-proxy-manager.
+    external: true

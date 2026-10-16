@@ -1,0 +1,19 @@
+# Ranges, not exact pins, for now. A lock file comes when the dependency list grows.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+psycopg[binary]>=3.2,<4
+argon2-cffi>=23.1,<27
+# Required by Starlette's SessionMiddleware.
+itsdangerous>=2.1,<3
+# Migrations.
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
+# FIT files from the watch (step 6).
+fitdecode>=0.11,<0.12
+# Garmin sync (step 6). Pinned exactly: Garmin breaks logins now and then, and an upgrade must be a
+# deliberate, tested change, never something a rebuild picks up on its own.
+garminconnect==0.3.17
+# AI providers (step 8): plain HTTPS calls to the Claude and Gemini APIs, no SDKs.
+httpx>=0.27,<1
+# Time zone data for the sync schedule (Europe/Madrid); the slim image has no system zoneinfo.
+tzdata>=2024.1

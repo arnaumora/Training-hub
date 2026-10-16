@@ -1,0 +1,24 @@
+{
+  "name": "traininghub-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "svelte": "^5.57.2",
+    "vite": "^8.3.4"
+  },
+  "dependencies": {
+    "@fontsource/b612": "^5.3.0",
+    "barcode-detector": "3.2.2",
+    "uplot": "^1.6.32",
+    "zxing-wasm": "3.1.3"
+  }
+}

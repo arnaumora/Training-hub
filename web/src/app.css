@@ -1,0 +1,860 @@
+/* Training Hub base styles. The design record is DESIGN.md at the repo root; keep the two in step.
+
+   Direction: a personal flight instrument, not a web template (2026-10-12), sharpened and made a little
+   warmer in the 2026-10-15 rework.
+   - Type: B612, the typeface Airbus designed for cockpit displays (legible figures at a glance).
+     Self-hosted from @fontsource, nothing is loaded from outside. One family, a 1.2 scale.
+   - Colour (palette "warm paper", chosen 2026-10-15): warm neutrals and a soft ink, teal for the main
+     action, links and the glucose line; the current glucose number in its own three colours (green in
+     range, ochre above it, red below the low or above 250); amber for cautions, red for a low.
+   - No cards, no uppercase labels: navigation is text tabs with an underline, a choice between values is a
+     segmented control, and rules appear only where they separate things.
+   - Light and dark both designed. They follow the phone unless the switch in Settings pins one
+     (data-theme on <html>, set before first paint by app.html). */
+
+:root {
+	--bg: #f4f2ed;
+	--surface: #fbfaf7;
+	--border: #dcd8cf;
+	--text: #2a2824;
+	--muted: #67635b;
+	--placeholder: #6b665e;
+	--accent: #1f7a6c; /* buttons, links, selected tab: white text on it stays readable */
+	--accent-text: #ffffff;
+	--caution: #8f540c;
+	--danger: #b23a2e;
+	/* Safety flags sit on a tint of their own colour, so they read first without a coloured edge. */
+	--caution-bg: #f6ead6;
+	--danger-bg: #f8e4df;
+
+	/* Chart tokens. Line colours validated with the dataviz palette checker
+	   (lightness band, chroma floor, 3:1 contrast against the chart surface) in each mode. */
+	/* Selected value in a segmented control: a tint of the accent, not a block of ink. */
+	--seg-bg: #dcebe7;
+	--seg-text: #17594f;
+	/* The current glucose number: in range, above it (181-250), and below the low or above 250. Its own
+	   three colours, not the accent; the words under it say the same thing. */
+	--glucose-good: #195c2e;
+	--glucose-high: #b08000;
+	--glucose-bad: #cf4042;
+
+	--chart-line: #23887a;
+	--chart-band: #e9e6df;
+	--chart-grid: #e4e0d8;
+	--chart-axis: #cbc6bb;
+	/* Heart-rate zones 1-5: one hue, light to dark as intensity rises (ordinal ramp, validated against
+	   the page background). Slate blue (2026-10-15, replacing violet, which did not sit with the warm palette), so it never reads as glucose (teal), caution (amber) or a low (red). */
+	--zone-1: #b4c6db;
+	--zone-2: #88a1bd;
+	--zone-3: #5e7da0;
+	--zone-4: #3d5d81;
+	--zone-5: #1f3f61;
+	/* Run comparison: the colour variable, low to high in five steps of the glucose hue (ordinal ramp,
+	   validated against the page background). Runs where the value is unknown are drawn in --chart-unknown. */
+	--step-1: #70b7a6;
+	--step-2: #429e8e;
+	--step-3: #1a8578;
+	--step-4: #006a61;
+	--step-5: #004b47;
+	--chart-unknown: #a9a49b;
+
+	/* Type scale, ratio 1.2 from a 16 px body. */
+	--fs-caption: 0.8125rem; /* 13 */
+	--fs-small: 0.875rem; /* 14: secondary lines, table cells on the phone */
+	--fs-body: 1rem; /* 16 */
+	--fs-title: 1.1875rem; /* 19: section headings */
+	--fs-heading: 1.4375rem; /* 23: page titles */
+	--fs-display: 2.25rem; /* 36: the main number of a page */
+	--fs-hero: 4.5rem; /* 72: current glucose */
+
+	/* Spacing, a 4 px grid. More space above a heading than below it. */
+	--s-1: 0.25rem;
+	--s-2: 0.5rem;
+	--s-3: 0.75rem;
+	--s-4: 1rem;
+	--s-5: 1.5rem;
+	--s-6: 2rem;
+	--s-7: 3rem;
+
+	--tap: 44px; /* smallest thing a thumb can hit after a run */
+	--radius: 4px;
+	--font: 'B612', system-ui, sans-serif;
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+	color-scheme: light;
+}
+
+/* Dark: the same values twice, once for the phone's setting and once for the switch. */
+:root[data-theme='dark'] {
+	--bg: #1b1a18;
+	--surface: #232220;
+	--border: #36332f;
+	--text: #e8e4dc;
+	--muted: #a39e94;
+	--placeholder: #97928a;
+	--accent: #5fc2ad;
+	--accent-text: #0d2420;
+	--caution: #e0a64a;
+	--danger: #ef7a6c;
+	--caution-bg: #2d2517;
+	--danger-bg: #2f1e1b;
+
+	/* Selected value in a segmented control: a tint of the accent, not a block of ink. */
+	--seg-bg: #21413b;
+	--seg-text: #b7e6db;
+	/* The current glucose number: in range, above it (181-250), and below the low or above 250. Its own
+	   three colours, not the accent; the words under it say the same thing. */
+	--glucose-good: #79cd91;
+	--glucose-high: #f1c45e;
+	--glucose-bad: #e36460;
+
+	--chart-line: #4fb09b;
+	--chart-band: #262421;
+	--chart-grid: #2b2926;
+	--chart-axis: #3e3b36;
+	/* Dark: harder zones are brighter. */
+	--zone-1: #2f4a67;
+	--zone-2: #48698d;
+	--zone-3: #6789b0;
+	--zone-4: #90aed0;
+	--zone-5: #bfd3eb;
+	/* Dark: higher values are brighter. */
+	--step-1: #1f5a50;
+	--step-2: #2f7668;
+	--step-3: #469380;
+	--step-4: #68b09c;
+	--step-5: #9ccec0;
+	--chart-unknown: #57534d;
+
+	color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--bg: #1b1a18;
+		--surface: #232220;
+		--border: #36332f;
+		--text: #e8e4dc;
+		--muted: #a39e94;
+		--placeholder: #97928a;
+		--accent: #5fc2ad;
+		--accent-text: #0d2420;
+		--caution: #e0a64a;
+		--danger: #ef7a6c;
+		--caution-bg: #2d2517;
+		--danger-bg: #2f1e1b;
+
+		/* Selected value in a segmented control: a tint of the accent, not a block of ink. */
+		--seg-bg: #21413b;
+		--seg-text: #b7e6db;
+		/* The current glucose number: in range, above it (181-250), and below the low or above 250. Its own
+		   three colours, not the accent; the words under it say the same thing. */
+		--glucose-good: #79cd91;
+		--glucose-high: #f1c45e;
+		--glucose-bad: #e36460;
+
+		--chart-line: #4fb09b;
+		--chart-band: #262421;
+		--chart-grid: #2b2926;
+		--chart-axis: #3e3b36;
+		--zone-1: #2f4a67;
+		--zone-2: #48698d;
+		--zone-3: #6789b0;
+		--zone-4: #90aed0;
+		--zone-5: #bfd3eb;
+		--step-1: #1f5a50;
+		--step-2: #2f7668;
+		--step-3: #469380;
+		--step-4: #68b09c;
+		--step-5: #9ccec0;
+		--chart-unknown: #57534d;
+
+		color-scheme: dark;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 16px;
+	line-height: 1.5;
+	/* B612's digits are all one width already; this keeps the fallback font aligned too. */
+	font-variant-numeric: tabular-nums;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	min-height: 100dvh;
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+		env(safe-area-inset-left);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+::placeholder {
+	color: var(--placeholder);
+	opacity: 1;
+}
+
+::selection {
+	background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Headings: weight and size both separate them from body text (1.2 steps). Screens may set their own
+   sizes from the same scale. */
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-weight: 700;
+	line-height: 1.25;
+	text-wrap: balance;
+}
+h1 {
+	font-size: var(--fs-heading);
+}
+h2 {
+	font-size: var(--fs-title);
+}
+h3 {
+	font-size: var(--fs-body);
+}
+
+/* iOS zooms the page into any field under 16px when it gets focus. */
+input,
+textarea,
+select {
+	font-size: max(16px, 1em);
+}
+
+/* Controls act on the tap (no double-tap-zoom wait) and a long press does not select their label.
+   Content text stays selectable. */
+button,
+a,
+[role='button'] {
+	touch-action: manipulation;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/* No grey or blue flash over the whole button on tap; buttons show their own pressed state. */
+html {
+	-webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled):active {
+	opacity: 0.75;
+}
+
+/* On a touch screen every control is at least 44 px tall, whatever its own styles say: the app is used
+   one-handed, just after a run. A mouse keeps the compact sizes. */
+@media (pointer: coarse) {
+	button,
+	select,
+	input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+		min-height: var(--tap);
+	}
+	input[type='checkbox'] {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* Text tabs: navigation between views of the same page. The selected one is in ink with a cyan underline.
+   At least 44 px tall: they are used one-handed. */
+.tabs {
+	display: flex;
+	gap: 1.1rem;
+}
+.tabs button {
+	min-height: var(--tap);
+	padding: 0 0 0.1rem;
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	color: var(--muted);
+	cursor: pointer;
+}
+.tabs button.active {
+	color: var(--text);
+	border-bottom-color: var(--accent);
+}
+
+/* Segmented control: a choice between values (time window, insulin kind, week or month). Boxed, so it never
+   reads as navigation. */
+.seg {
+	display: inline-flex;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow: hidden;
+}
+.seg button {
+	min-height: var(--tap);
+	min-width: var(--tap);
+	padding: 0 0.85rem;
+	background: none;
+	border: none;
+	color: var(--muted);
+	cursor: pointer;
+	transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.seg button + button {
+	border-left: 1px solid var(--border);
+}
+.seg button[aria-pressed='true'] {
+	background: var(--seg-bg);
+	color: var(--seg-text);
+}
+
+/* A quiet action button: bordered, muted, a full 44 px target. For secondary actions in a row (the Log
+   sheet's details, Food's Scan / New food / New recipe). */
+.btn-quiet {
+	min-height: var(--tap);
+	padding: 0 var(--s-3);
+	background: none;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-size: var(--fs-small);
+	cursor: pointer;
+}
+.btn-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--s-2);
+}
+
+/* Text actions. The hit area reaches 44 px tall without moving the text around it. */
+.link {
+	background: none;
+	border: none;
+	padding: 0.65rem 0;
+	margin: -0.65rem 0;
+	color: var(--accent);
+	cursor: pointer;
+}
+.link:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Flags. Safety (a low, a high start, ketones) on a tint of its colour, always first; data quality (sensor
+   coverage, unlogged doses) as a quiet line or a badge beside the number it qualifies. */
+.flag-safety,
+.flag-low {
+	margin: 0;
+	padding: var(--s-2) var(--s-3);
+	border-radius: var(--radius);
+	background: var(--caution-bg);
+	color: var(--caution);
+}
+.flag-low {
+	background: var(--danger-bg);
+	color: var(--danger);
+}
+.flag-quality {
+	margin: 0;
+	color: var(--muted);
+	font-size: var(--fs-small);
+}
+.badge {
+	display: inline-block;
+	padding: 0 0.4rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	color: var(--muted);
+	font-size: var(--fs-caption);
+	line-height: 1.6;
+	white-space: nowrap;
+}
+
+/* A section of a page: its heading, then its content, on a flat panel (chosen 2026-10-15 from panels,
+   rules and tinted headings): a lighter surface, a hairline border, the small radius, no shadow. Panels are
+   never nested; rows inside one are still separated by hairlines. */
+.sec {
+	display: grid;
+	gap: var(--s-3);
+	align-content: start;
+	min-width: 0;
+	padding: var(--s-4);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+/* A form group as a panel: the legend becomes the panel's heading (floated, so it is not drawn on the border;
+   inside the grid it is simply the first row). */
+fieldset.sec {
+	margin: 0;
+}
+fieldset.sec > legend {
+	float: left;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	font-size: var(--fs-title);
+	font-weight: 700;
+	line-height: 1.25;
+}
+.sec > h3:first-child,
+.sec > .sec-head:first-child h3 {
+	margin: 0;
+	font-size: var(--fs-title);
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* ---- The Log form: full screen, phone first, one hand. Scoped under .sheet. ---- */
+
+.sheet {
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	overflow-y: auto;
+	/* Scrolling inside the sheet never scrolls the page behind it. */
+	overscroll-behavior: contain;
+	background: var(--bg);
+	padding: calc(env(safe-area-inset-top) + 0.75rem) 1rem calc(2.5rem + env(safe-area-inset-bottom));
+}
+.sheet form {
+	display: grid;
+	/* minmax(0, 1fr): never let a wide child (an input's intrinsic width) widen the column. */
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--s-5);
+	max-width: 480px;
+	margin: 0 auto;
+}
+.sheet .top {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+}
+.sheet h2 {
+	margin: 0;
+	font-size: var(--fs-title);
+	font-weight: 700;
+}
+
+/* One block per thing logged: its name on the left, its choice (tabs) on the right. */
+.sheet .block {
+	display: grid;
+	gap: var(--s-2);
+}
+.sheet .block-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--s-3);
+}
+.sheet .block-label {
+	font-weight: 700;
+}
+
+/* The big number field: a bottom rule, not a box. */
+.sheet .amount {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	border-bottom: 2px solid var(--border);
+}
+.sheet .amount:focus-within {
+	border-bottom-color: var(--accent);
+}
+.sheet .amount input {
+	flex: 1;
+	width: 0;
+	min-width: 0;
+	padding: 0.1rem 0;
+	border: none;
+	background: none;
+	outline: none;
+	font-size: 40px;
+	font-weight: 700;
+	line-height: 1.2;
+}
+.sheet .amount input[aria-invalid='true'] {
+	color: var(--danger);
+}
+.sheet .unit {
+	color: var(--muted);
+}
+
+.sheet .hint,
+.sheet .caution,
+.sheet .error {
+	margin: 0;
+	font-size: var(--fs-small);
+}
+.sheet .hint {
+	color: var(--muted);
+}
+.sheet .caution {
+	color: var(--caution);
+}
+.sheet .error {
+	color: var(--danger);
+}
+
+/* The calculator's answer: one line under the insulin field. */
+.sheet .suggest {
+	display: flex;
+	align-items: baseline;
+	gap: 0.9rem;
+	flex-wrap: wrap;
+}
+.sheet .suggest.stale {
+	opacity: 0.5;
+}
+.sheet .suggest strong {
+	color: var(--accent);
+	font-size: var(--fs-title);
+}
+.sheet .use {
+	min-height: var(--tap);
+	min-width: var(--tap);
+	padding: 0 var(--s-4);
+	background: none;
+	color: var(--accent);
+	border: 1.5px solid var(--accent);
+	border-radius: var(--radius);
+	font-weight: 700;
+	cursor: pointer;
+}
+.sheet .why {
+	margin-left: auto;
+	min-width: var(--tap);
+	min-height: var(--tap);
+	margin-block: 0;
+	padding-block: 0;
+	text-align: right;
+	font-size: var(--fs-small);
+}
+
+/* The breakdown behind "Why": every term of the formula. */
+.sheet .breakdown {
+	display: grid;
+	gap: 0.45rem;
+	padding: var(--s-3);
+	border-radius: var(--radius);
+	background: var(--surface);
+	font-size: var(--fs-small);
+}
+.sheet .terms {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	/* No column gap, so the rule above Total runs unbroken; padding spaces the columns instead. */
+	gap: 0.25rem 0;
+}
+.sheet .terms > span:not(.v) {
+	padding-right: 0.75rem;
+}
+.sheet .terms .f {
+	color: var(--muted);
+}
+.sheet .terms .v {
+	text-align: right;
+}
+.sheet .terms .sum {
+	padding-top: 0.25rem;
+	border-top: 1px solid var(--border);
+}
+.sheet .breakdown ul {
+	margin: 0;
+	padding-left: 1rem;
+	color: var(--muted);
+}
+
+.sheet .save {
+	min-height: 52px;
+	padding: 0 var(--s-4);
+	background: var(--accent);
+	color: var(--accent-text);
+	border: none;
+	border-radius: var(--radius);
+	font-weight: 700;
+	font-size: var(--fs-body);
+	cursor: pointer;
+}
+.sheet .save:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Secondary details (insulin name, time, note): a row of quiet buttons under Log, each a full 44 px target. */
+.sheet .meta-line {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--s-2);
+	margin: calc(-1 * var(--s-2)) 0 0;
+}
+
+.sheet .field {
+	width: 100%;
+	color: var(--text);
+	padding: 0.45rem 0;
+	background: none;
+	border: none;
+	border-bottom: 1.5px solid var(--border);
+	border-radius: 0;
+}
+.sheet .field:focus {
+	outline: none;
+	border-bottom-color: var(--accent);
+}
+.sheet .field[aria-invalid='true'] {
+	border-bottom-color: var(--danger);
+}
+/* The Log sheet's time: a day from a short list and a 24 h clock typed as text. */
+.sheet .when-fields {
+	display: flex;
+	gap: var(--s-3);
+	min-width: 0;
+}
+.sheet .when-fields select {
+	flex: 1;
+	min-width: 0;
+}
+.sheet .when-fields .clock {
+	flex: none;
+	width: 4.5rem;
+}
+.sheet .field-row {
+	display: grid;
+	grid-template-columns: 5.75rem minmax(0, 1fr);
+	align-items: baseline;
+	gap: var(--s-3);
+	font-size: var(--fs-small);
+	color: var(--muted);
+}
+
+.sheet .duplicate {
+	margin: 0;
+	color: var(--caution);
+	font-size: var(--fs-small);
+}
+
+.sheet .delete {
+	justify-self: start;
+	min-height: var(--tap);
+	margin-top: var(--s-2);
+	background: none;
+	border: none;
+	padding: 0;
+	color: var(--danger);
+	cursor: pointer;
+}
+
+/* Foods mode: the meal's items, the search with its results, the totals. */
+.sheet .items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.sheet .items li {
+	display: grid;
+	grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+	grid-template-areas: 'name name name' 'grams carbs actions';
+	align-items: baseline;
+	gap: 0.15rem 0.75rem;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--border);
+}
+.sheet .food-name {
+	grid-area: name;
+}
+.sheet .food-grams {
+	grid-area: grams;
+	display: flex;
+	align-items: baseline;
+	gap: 0.35rem;
+	color: var(--muted);
+}
+.sheet .food-grams input {
+	width: 100%;
+	min-width: 0;
+	padding: 0.2rem 0;
+	background: none;
+	border: none;
+	border-bottom: 1.5px solid var(--border);
+	color: var(--text);
+	font-weight: 700;
+}
+.sheet .food-grams input:focus {
+	outline: none;
+	border-bottom-color: var(--accent);
+}
+.sheet .food-grams input[aria-invalid='true'] {
+	border-bottom-color: var(--danger);
+}
+.sheet .food-carbs {
+	grid-area: carbs;
+	color: var(--muted);
+	font-size: var(--fs-small);
+}
+.sheet .food-actions {
+	grid-area: actions;
+	display: flex;
+	gap: var(--s-4);
+	font-size: var(--fs-small);
+}
+.sheet .food-actions .link {
+	color: var(--muted);
+}
+.sheet .rename {
+	grid-area: name;
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+}
+.sheet .rename input {
+	flex: 1;
+	min-width: 0;
+	padding: 0.2rem 0;
+	background: none;
+	border: none;
+	border-bottom: 1.5px solid var(--accent);
+	outline: none;
+}
+.sheet .search input {
+	width: 100%;
+	padding: 0.5rem 0;
+	background: none;
+	border: none;
+	border-bottom: 2px solid var(--border);
+	border-radius: 0;
+	-webkit-appearance: none;
+	appearance: none;
+}
+.sheet .search input::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	display: none;
+}
+.sheet .search input:focus {
+	outline: none;
+	border-bottom-color: var(--accent);
+}
+.sheet .results {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.sheet .results li {
+	border-bottom: 1px solid var(--border);
+}
+.sheet .results button {
+	display: grid;
+	gap: 0.05rem;
+	width: 100%;
+	min-height: var(--tap);
+	padding: var(--s-2) 0;
+	background: none;
+	border: none;
+	text-align: left;
+	cursor: pointer;
+}
+.sheet .muted-line {
+	display: block;
+	color: var(--muted);
+	font-size: var(--fs-caption);
+}
+.sheet .list-label {
+	margin: var(--s-2) 0 0;
+	color: var(--muted);
+	font-size: var(--fs-small);
+}
+.sheet .totals {
+	margin: 0;
+	font-size: var(--fs-small);
+	color: var(--muted);
+}
+.sheet .totals strong {
+	color: var(--text);
+}
+.sheet .fields {
+	display: grid;
+	gap: 0.4rem;
+}
+
+/* Food sheet: values per 100 g, typed (own food) or read-only (CIQUAL). */
+.sheet .value-fields {
+	display: grid;
+	gap: 0.15rem;
+}
+.sheet .value-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 6rem 2.5rem;
+	align-items: baseline;
+	gap: 0.75rem;
+}
+.sheet .value-row.sub > span:first-child,
+.sheet .values dt.sub {
+	padding-left: 1rem;
+	color: var(--muted);
+}
+.sheet .value-row input {
+	width: 100%;
+	min-width: 0;
+	padding: 0.4rem 0;
+	background: none;
+	border: none;
+	border-bottom: 1.5px solid var(--border);
+	border-radius: 0;
+	text-align: right;
+	font-weight: 700;
+}
+.sheet .value-row input:focus {
+	outline: none;
+	border-bottom-color: var(--accent);
+}
+.sheet .value-row input[aria-invalid='true'] {
+	border-bottom-color: var(--danger);
+	color: var(--danger);
+}
+.sheet .values {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.3rem 1rem;
+	margin: 0;
+}
+.sheet .values dd {
+	margin: 0;
+	text-align: right;
+}
+
+/* Food search with the Scan link at its right. */
+.sheet .search-row {
+	display: flex;
+	align-items: baseline;
+	gap: 1rem;
+}
+.sheet .search-row input {
+	flex: 1;
+	min-width: 0;
+}

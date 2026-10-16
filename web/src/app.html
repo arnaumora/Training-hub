@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#f4f2ed" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#1b1a18" media="(prefers-color-scheme: dark)" />
+		<script>
+			// A browser on a system with a POSIX locale reports navigator.language as "en-US@posix", which is
+			// not a valid language tag: uPlot builds an Intl.NumberFormat from it when it loads and the whole
+			// page fails. Such a value is replaced by en-GB (the app formats dates in en-GB anyway).
+			try {
+				new Intl.NumberFormat(navigator.language);
+			} catch (e) {
+				try {
+					Object.defineProperty(navigator, 'language', { get: function () { return 'en-GB'; } });
+					Object.defineProperty(navigator, 'languages', { get: function () { return ['en-GB']; } });
+				} catch (e2) {}
+			}
+		</script>
+		<script>
+			// The light/dark switch (src/lib/theme.js), applied before first paint.
+			try {
+				var t = localStorage.getItem('theme');
+				if (t === 'light' || t === 'dark') {
+					document.documentElement.dataset.theme = t;
+					// The status bar follows the pinned theme too (the same values as src/lib/theme.js).
+					var c = t === 'dark' ? '#1b1a18' : '#f4f2ed';
+					document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+						m.removeAttribute('media');
+						m.setAttribute('content', c);
+					});
+				}
+			} catch (e) {}
+		</script>
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="apple-mobile-web-app-title" content="Training Hub" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+		<link rel="icon" type="image/png" href="%sveltekit.assets%/icon-192.png" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+		<title>Training Hub</title>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
